@@ -6,70 +6,114 @@
 <style>
   body { font-family: Arial, sans-serif; background: #1e1e1e; color: #fff; text-align: center; padding: 20px; }
   h1 { margin-bottom: 20px; }
-  .raid { margin: 10px 0; padding: 10px; border: 1px solid #444; border-radius: 8px; display: inline-block; width: 200px; }
-  button { margin-top: 10px; padding: 5px 10px; }
-  .time { font-size: 1.5em; margin-top: 5px; }
+  .raid { margin: 10px 0; padding: 10px; border: 1px solid #444; border-radius: 8px; display: inline-block; width: 250px; }
+  button { margin: 5px; padding: 5px 10px; }
+  .time { font-size: 1.3em; margin-top: 5px; }
 </style>
 </head>
 <body>
 
 <h1>Raid Cooldowns</h1>
-
 <div id="raids"></div>
 
 <script>
-  // Edit this array to add your raids and cooldowns (in minutes)
-  const raidList = [
-    { name: "Raid A", cooldown: 30 },
-    { name: "Raid B", cooldown: 45 },
-    { name: "Raid C", cooldown: 60 }
-  ];
+const raidList = [
+  { name: "3H - Red Ribbon", cooldown: 180, fail: 15 },
+  { name: "4H - Android", cooldown: 240, fail: 75 },
+  { name: "4H - Snowfield", cooldown: 240, fail: 75 },
+  { name: "3H - Babidi", cooldown: 180, fail: 15 },
+  { name: "4H - Majin Buu", cooldown: 240, fail: 75 },
+  { name: "4H - Gotenks", cooldown: 240, fail: 75 },
+  { name: "4H - Super Saiba", cooldown: 240, fail: 75 },
+  { name: "4H - The Drink", cooldown: 240, fail: 75 },
+  { name: "3H - Animal Dojo", cooldown: 180, fail: 15 }
+];
 
-  const raidsDiv = document.getElementById("raids");
-  const timers = {};
+const raidsDiv = document.getElementById("raids");
+const timers = {};
 
-  raidList.forEach((raid, index) => {
-    const raidDiv = document.createElement("div");
-    raidDiv.className = "raid";
+raidList.forEach((raid, index) => {
+  const raidDiv = document.createElement("div");
+  raidDiv.className = "raid";
 
-    const nameEl = document.createElement("div");
-    nameEl.textContent = raid.name;
-    raidDiv.appendChild(nameEl);
+  const nameEl = document.createElement("div");
+  nameEl.textContent = raid.name;
+  raidDiv.appendChild(nameEl);
 
-    const timeEl = document.createElement("div");
-    timeEl.className = "time";
-    timeEl.textContent = formatTime(raid.cooldown * 60);
-    raidDiv.appendChild(timeEl);
+  const timeEl = document.createElement("div");
+  timeEl.className = "time";
+  timeEl.textContent = formatTime(raid.cooldown * 60);
+  raidDiv.appendChild(timeEl);
 
-    const btn = document.createElement("button");
-    btn.textContent = "Start";
-    btn.onclick = () => startTimer(index, raid.cooldown * 60, timeEl);
-    raidDiv.appendChild(btn);
+  // Start/Pause button
+  const startBtn = document.createElement("button");
+  startBtn.textContent = "Start";
+  startBtn.style.width = "80px";
+  startBtn.onclick = () => handleStartPause(index, raid.cooldown * 60, timeEl, startBtn);
+  startBtn.ondblclick = () => handleReset(index, raid.cooldown * 60, timeEl, startBtn);
+  raidDiv.appendChild(startBtn);
 
-    raidsDiv.appendChild(raidDiv);
-  });
+  // Fail button
+  const failBtn = document.createElement("button");
+  failBtn.textContent = "Fail";
+  failBtn.style.width = "80px";
+  failBtn.onclick = () => handleFail(index, raid.fail * 60, timeEl, startBtn);
+  raidDiv.appendChild(failBtn);
 
-  function formatTime(seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  }
+  raidsDiv.appendChild(raidDiv);
+});
 
-  function startTimer(index, totalSeconds, displayEl) {
-    if (timers[index]) clearInterval(timers[index]);
-    let remaining = totalSeconds;
+function formatTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function startTimer(index, totalSeconds, displayEl, onFinish) {
+  if (timers[index]) clearInterval(timers[index]);
+  let remaining = totalSeconds;
+  displayEl.textContent = formatTime(remaining);
+
+  timers[index] = setInterval(() => {
+    remaining--;
     displayEl.textContent = formatTime(remaining);
+    if (remaining <= 0) {
+      clearInterval(timers[index]);
+      displayEl.textContent = "Ready!";
+      onFinish();
+    }
+  }, 1000);
+  return remaining;
+}
 
-    timers[index] = setInterval(() => {
-      remaining--;
-      displayEl.textContent = formatTime(remaining);
-      if (remaining <= 0) {
-        clearInterval(timers[index]);
-        displayEl.textContent = "Ready!";
-        alert(`${raidList[index].name} is ready!`);
-      }
-    }, 1000);
+function handleStartPause(index, totalSeconds, displayEl, btn) {
+  if (btn.textContent === "Start" || btn.textContent === "Pause") {
+    if (btn.textContent === "Start") {
+      // Start
+      startTimer(index, totalSeconds, displayEl, () => btn.textContent = "Success");
+      btn.textContent = "Pause";
+    } else if (btn.textContent === "Pause") {
+      // Pause
+      clearInterval(timers[index]);
+      btn.textContent = "Pause"; // still shows pause
+    }
   }
+}
+
+function handleReset(index, totalSeconds, displayEl, btn) {
+  clearInterval(timers[index]);
+  displayEl.textContent = formatTime(totalSeconds);
+  btn.textContent = "Start";
+}
+
+function handleFail(index, failSeconds, displayEl, btn) {
+  clearInterval(timers[index]);
+  startTimer(index, failSeconds, displayEl, () => btn.textContent = "Success");
+  btn.textContent = "Pause";
+}
 </script>
 
 </body>
