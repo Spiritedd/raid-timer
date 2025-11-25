@@ -6,15 +6,19 @@
 <style>
   body { font-family: Arial, sans-serif; background: #1e1e1e; color: #fff; text-align: center; padding: 20px; }
   h1 { margin-bottom: 20px; }
-  .raid { margin: 10px 0; padding: 10px; border: 1px solid #444; border-radius: 8px; display: inline-block; width: 250px; }
+  .raid { margin: 10px 0; padding: 10px; border: 1px solid #444; border-radius: 8px; display: inline-block; width: 300px; }
   button { margin: 5px; padding: 5px 10px; }
   .time { font-size: 1.3em; margin-top: 5px; }
+  .endTime { font-size: 0.9em; color: #aaa; margin-top: 3px; }
+  footer { margin-top: 30px; font-size: 0.9em; color: #ccc; }
 </style>
 </head>
 <body>
 
 <h1>Raid Cooldowns</h1>
 <div id="raids"></div>
+
+<footer>Double Click "Pause" to Reset timer</footer>
 
 <script>
 const raidList = [
@@ -45,19 +49,24 @@ raidList.forEach((raid, index) => {
   timeEl.textContent = formatTime(raid.cooldown * 60);
   raidDiv.appendChild(timeEl);
 
+  const endEl = document.createElement("div");
+  endEl.className = "endTime";
+  endEl.textContent = "Ends at: --:--:--";
+  raidDiv.appendChild(endEl);
+
   // Start/Pause button
   const startBtn = document.createElement("button");
   startBtn.textContent = "Start";
   startBtn.style.width = "80px";
-  startBtn.onclick = () => handleStartPause(index, raid.cooldown * 60, timeEl, startBtn);
-  startBtn.ondblclick = () => handleReset(index, raid.cooldown * 60, timeEl, startBtn);
+  startBtn.onclick = () => handleStartPause(index, raid.cooldown * 60, timeEl, endEl, startBtn);
+  startBtn.ondblclick = () => handleReset(index, raid.cooldown * 60, timeEl, endEl, startBtn);
   raidDiv.appendChild(startBtn);
 
   // Fail button
   const failBtn = document.createElement("button");
   failBtn.textContent = "Fail";
   failBtn.style.width = "80px";
-  failBtn.onclick = () => handleFail(index, raid.fail * 60, timeEl, startBtn);
+  failBtn.onclick = () => handleFail(index, raid.fail * 60, timeEl, endEl, startBtn);
   raidDiv.appendChild(failBtn);
 
   raidsDiv.appendChild(raidDiv);
@@ -72,9 +81,15 @@ function formatTime(seconds) {
   return `${s}s`;
 }
 
-function startTimer(index, totalSeconds, displayEl, onFinish) {
+function formatEndTime(date) {
+  return date.toLocaleTimeString(); // Converts to user's local timezone
+}
+
+function startTimer(index, totalSeconds, displayEl, endEl, onFinish) {
   if (timers[index]) clearInterval(timers[index]);
   let remaining = totalSeconds;
+  const endTime = new Date(Date.now() + remaining * 1000);
+  endEl.textContent = "Ends at: " + formatEndTime(endTime);
   displayEl.textContent = formatTime(remaining);
 
   timers[index] = setInterval(() => {
@@ -83,35 +98,35 @@ function startTimer(index, totalSeconds, displayEl, onFinish) {
     if (remaining <= 0) {
       clearInterval(timers[index]);
       displayEl.textContent = "Ready!";
+      endEl.textContent = "Ends at: --:--:--";
       onFinish();
     }
   }, 1000);
   return remaining;
 }
 
-function handleStartPause(index, totalSeconds, displayEl, btn) {
+function handleStartPause(index, totalSeconds, displayEl, endEl, btn) {
   if (btn.textContent === "Start" || btn.textContent === "Pause") {
     if (btn.textContent === "Start") {
-      // Start
-      startTimer(index, totalSeconds, displayEl, () => btn.textContent = "Success");
+      startTimer(index, totalSeconds, displayEl, endEl, () => btn.textContent = "Success");
       btn.textContent = "Pause";
     } else if (btn.textContent === "Pause") {
-      // Pause
       clearInterval(timers[index]);
-      btn.textContent = "Pause"; // still shows pause
+      btn.textContent = "Pause"; // stays as pause until reset
     }
   }
 }
 
-function handleReset(index, totalSeconds, displayEl, btn) {
+function handleReset(index, totalSeconds, displayEl, endEl, btn) {
   clearInterval(timers[index]);
   displayEl.textContent = formatTime(totalSeconds);
+  endEl.textContent = "Ends at: --:--:--";
   btn.textContent = "Start";
 }
 
-function handleFail(index, failSeconds, displayEl, btn) {
+function handleFail(index, failSeconds, displayEl, endEl, btn) {
   clearInterval(timers[index]);
-  startTimer(index, failSeconds, displayEl, () => btn.textContent = "Success");
+  startTimer(index, failSeconds, displayEl, endEl, () => btn.textContent = "Success");
   btn.textContent = "Pause";
 }
 </script>
