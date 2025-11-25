@@ -63,18 +63,25 @@ raidList.forEach((raid, index) => {
   raidDiv.appendChild(endEl);
 
   // Click timer to customize
-  timeEl.onclick = () => {
-    let hours = prompt("Enter hours for main cooldown:", Math.floor(remainingTimes[index]/3600));
-    if (hours === null || isNaN(hours) || hours < 0) return;
-    let minutes = prompt("Enter minutes for main cooldown:", Math.floor((remainingTimes[index]%3600)/60));
-    if (minutes === null || isNaN(minutes) || minutes < 0) return;
-    remainingTimes[index] = parseInt(hours)*3600 + parseInt(minutes)*60;
-    saveTimers();
-    clearInterval(timers[index]);
-    timeEl.textContent = formatTime(remainingTimes[index]);
-    endEl.textContent = "Ends at: --:--";
-    startBtn.textContent = "Start";
-  };
+// Click timer to customize and auto-start
+timeEl.onclick = () => {
+  let hours = prompt("Enter hours for main cooldown:", Math.floor(remainingTimes[index]/3600));
+  if (hours === null || isNaN(hours) || hours < 0) return;
+  let minutes = prompt("Enter minutes for main cooldown:", Math.floor((remainingTimes[index]%3600)/60));
+  if (minutes === null || isNaN(minutes) || minutes < 0) return;
+
+  remainingTimes[index] = parseInt(hours)*3600 + parseInt(minutes)*60;
+  saveTimers();
+  clearInterval(timers[index]);
+  timeEl.textContent = formatTime(remainingTimes[index]);
+  
+  const endEl = raidDiv.querySelector(".endTime");
+  const startBtn = raidDiv.querySelector("button");
+
+  startTimer(index, timeEl, endEl, () => startBtn.textContent = "Success");
+  startBtn.textContent = "Pause"; // reflect that timer is running
+};
+
 
   // Start/Pause button
   const startBtn = document.createElement("button");
