@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Raid Cooldowns</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #1e1e1e; color: #fff; text-align: center; padding: 20px; }
+  h1 { margin-bottom: 20px; }
+  .raid { margin: 10px 0; padding: 10px; border: 1px solid #444; border-radius: 8px; display: inline-block; width: 200px; }
+  button { margin-top: 10px; padding: 5px 10px; }
+  .time { font-size: 1.5em; margin-top: 5px; }
+</style>
+</head>
+<body>
+
+<h1>Raid Cooldowns</h1>
+
+<div id="raids"></div>
+
+<script>
+  // Edit this array to add your raids and cooldowns (in minutes)
+  const raidList = [
+    { name: "Raid A", cooldown: 30 },
+    { name: "Raid B", cooldown: 45 },
+    { name: "Raid C", cooldown: 60 }
+  ];
+
+  const raidsDiv = document.getElementById("raids");
+  const timers = {};
+
+  raidList.forEach((raid, index) => {
+    const raidDiv = document.createElement("div");
+    raidDiv.className = "raid";
+
+    const nameEl = document.createElement("div");
+    nameEl.textContent = raid.name;
+    raidDiv.appendChild(nameEl);
+
+    const timeEl = document.createElement("div");
+    timeEl.className = "time";
+    timeEl.textContent = formatTime(raid.cooldown * 60);
+    raidDiv.appendChild(timeEl);
+
+    const btn = document.createElement("button");
+    btn.textContent = "Start";
+    btn.onclick = () => startTimer(index, raid.cooldown * 60, timeEl);
+    raidDiv.appendChild(btn);
+
+    raidsDiv.appendChild(raidDiv);
+  });
+
+  function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function startTimer(index, totalSeconds, displayEl) {
+    if (timers[index]) clearInterval(timers[index]);
+    let remaining = totalSeconds;
+    displayEl.textContent = formatTime(remaining);
+
+    timers[index] = setInterval(() => {
+      remaining--;
+      displayEl.textContent = formatTime(remaining);
+      if (remaining <= 0) {
+        clearInterval(timers[index]);
+        displayEl.textContent = "Ready!";
+        alert(`${raidList[index].name} is ready!`);
+      }
+    }, 1000);
+  }
+</script>
+
+</body>
+</html>
