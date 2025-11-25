@@ -2,147 +2,106 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Raid Cooldowns</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Custom Timer</title>
 <style>
-  body { font-family: Arial, sans-serif; background: #1e1e1e; color: #fff; text-align: center; padding: 20px; }
-  h1 { margin-bottom: 20px; }
-  .raid { margin: 10px 0; padding: 10px; border: 1px solid #444; border-radius: 8px; display: inline-block; width: 300px; }
-  button { margin: 5px; padding: 5px 10px; }
-  .time { font-size: 1.3em; margin-top: 5px; cursor: pointer; }
-  .endTime { font-size: 0.9em; color: #aaa; margin-top: 3px; }
-  footer { margin-top: 30px; font-size: 0.9em; color: #ccc; }
+  body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+  #timer { font-size: 48px; margin: 20px; cursor: pointer; }
+  #realTime { font-size: 24px; margin: 20px; }
+  footer { margin-top: 50px; font-weight: bold; }
 </style>
 </head>
 <body>
 
-<h1>Raid Cooldowns</h1>
-<div id="raids"></div>
+<h1>Custom Timer</h1>
+<div>
+  <button onclick="setPreset(1)">1h</button>
+  <button onclick="setPreset(2)">2h</button>
+  <button onclick="setPreset(3)">3h</button>
+</div>
 
-<footer>Double Click "Pause" to Reset timer. Click the timer to customize main cooldown.</footer>
+<div id="timer">00:00</div>
+<div id="realTime"></div>
+<label><input type="checkbox" id="pushNotif"> Enable push notifications</label>
+
+<footer>made by <a href="https://discord.gg/fsrinfo" target="_blank">https://discord.gg/fsrinfo</a> using ChatGPT</footer>
+
+<audio id="dingSound" src="https://www.soundjay.com/button/beep-07.wav"></audio>
 
 <script>
-const raidList = [
-  { name: "3H - Red Ribbon", cooldown: 180, fail: 15 },
-  { name: "4H - Android", cooldown: 240, fail: 75 },
-  { name: "4H - Snowfield", cooldown: 240, fail: 75 },
-  { name: "3H - Babidi", cooldown: 180, fail: 15 },
-  { name: "4H - Majin Buu", cooldown: 240, fail: 75 },
-  { name: "4H - Gotenks", cooldown: 240, fail: 75 },
-  { name: "4H - Super Saiba", cooldown: 240, fail: 75 },
-  { name: "4H - The Drink", cooldown: 240, fail: 75 },
-  { name: "3H - Animal Dojo", cooldown: 180, fail: 15 }
-];
+let timerDisplay = document.getElementById('timer');
+let realTimeDisplay = document.getElementById('realTime');
+let ding = document.getElementById('dingSound');
+let timerInterval, targetTime;
+let pushEnabled = false;
 
-const raidsDiv = document.getElementById("raids");
-const timers = {};
-const remainingTimes = {}; // store remaining main cooldown in seconds
+// Load saved timer if exists
+if(localStorage.getItem('timerEnd')){
+  targetTime = parseInt(localStorage.getItem('timerEnd'));
+  startTimer();
+}
 
-raidList.forEach((raid, index) => {
-  const raidDiv = document.createElement("div");
-  raidDiv.className = "raid";
-
-  const nameEl = document.createElement("div");
-  nameEl.textContent = raid.name;
-  raidDiv.appendChild(nameEl);
-
-  const timeEl = document.createElement("div");
-  timeEl.className = "time";
-  timeEl.textContent = formatTime(raid.cooldown * 60);
-  raidDiv.appendChild(timeEl);
-
-  const endEl = document.createElement("div");
-  endEl.className = "endTime";
-  endEl.textContent = "Ends at: --:--:--";
-  raidDiv.appendChild(endEl);
-
-  remainingTimes[index] = raid.cooldown * 60;
-
-  // Click on timer to customize main cooldown (hours → minutes)
-  timeEl.onclick = () => {
-    let hours = prompt("Enter hours for main cooldown:", Math.floor(remainingTimes[index]/3600));
-    if (hours === null || isNaN(hours) || hours < 0) return;
-    let minutes = prompt("Enter minutes for main cooldown:", Math.floor((remainingTimes[index]%3600)/60));
-    if (minutes === null || isNaN(minutes) || minutes < 0) return;
-    remainingTimes[index] = parseInt(hours)*3600 + parseInt(minutes)*60;
-    clearInterval(timers[index]);
-    timeEl.textContent = formatTime(remainingTimes[index]);
-    endEl.textContent = "Ends at: --:--:--";
-    const btn = raidDiv.querySelector("button");
-    btn.textContent = "Start";
-  };
-
-  // Start/Pause button
-  const startBtn = document.createElement("button");
-  startBtn.textContent = "Start";
-  startBtn.style.width = "80px";
-  startBtn.onclick = () => handleStartPause(index, timeEl, endEl, startBtn);
-  startBtn.ondblclick = () => handleReset(index, timeEl, endEl, startBtn);
-  raidDiv.appendChild(startBtn);
-
-  // Fail button
-  const failBtn = document.createElement("button");
-  failBtn.textContent = "Fail";
-  failBtn.style.width = "80px";
-  failBtn.onclick = () => handleFail(index, raid.fail * 60, timeEl, endEl, startBtn);
-  raidDiv.appendChild(failBtn);
-
-  raidsDiv.appendChild(raidDiv);
+document.getElementById('pushNotif').addEventListener('change', (e) => {
+  pushEnabled = e.target.checked;
+  if(pushEnabled && Notification.permission !== "granted") {
+    Notification.requestPermission();
+  }
 });
 
-function formatTime(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+// Set preset in hours
+function setPreset(hours){
+  let mins = prompt("Minutes after hours?");
+  if(mins === null) return;
+  let totalMs = ((parseInt(hours)||0) * 60 + (parseInt(mins)||0)) * 60 * 1000;
+  targetTime = Date.now() + totalMs;
+  localStorage.setItem('timerEnd', targetTime);
+  startTimer();
 }
 
-function formatEndTime(date) {
-  return date.toLocaleTimeString();
-}
-
-function startTimer(index, displayEl, endEl, onFinish) {
-  if (timers[index]) clearInterval(timers[index]);
-  let remaining = remainingTimes[index];
-  const endTime = new Date(Date.now() + remaining * 1000);
-  endEl.textContent = "Ends at: " + formatEndTime(endTime);
-
-  timers[index] = setInterval(() => {
-    remaining--;
-    remainingTimes[index] = remaining;
-    displayEl.textContent = formatTime(remaining);
-    if (remaining <= 0) {
-      clearInterval(timers[index]);
-      displayEl.textContent = "Ready!";
-      endEl.textContent = "Ends at: --:--:--";
-      onFinish();
+function startTimer(){
+  if(timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    let remaining = targetTime - Date.now();
+    if(remaining <= 0){
+      clearInterval(timerInterval);
+      timerDisplay.textContent = "00:00";
+      ding.play();
+      flashTab();
+      if(pushEnabled && Notification.permission === "granted"){
+        new Notification("Timer Finished!");
+      }
+      // Auto-reset after finishing
+      targetTime = Date.now();
+      localStorage.removeItem('timerEnd');
+    } else {
+      let totalSec = Math.floor(remaining / 1000);
+      let min = String(Math.floor(totalSec / 60)).padStart(2,'0');
+      let sec = String(totalSec % 60).padStart(2,'0');
+      timerDisplay.textContent = `${min}:${sec}`;
     }
   }, 1000);
 }
 
-function handleStartPause(index, displayEl, endEl, btn) {
-  if (btn.textContent === "Start") {
-    startTimer(index, displayEl, endEl, () => btn.textContent = "Success");
-    btn.textContent = "Pause";
-  } else if (btn.textContent === "Pause") {
-    clearInterval(timers[index]);
-  }
+// Flash tab on finish
+function flashTab(){
+  let flash = true;
+  let originalTitle = document.title;
+  let flashInterval = setInterval(() => {
+    document.title = flash ? "⏰ Timer Done!" : originalTitle;
+    flash = !flash;
+  }, 500);
+  setTimeout(() => { clearInterval(flashInterval); document.title = originalTitle; }, 5000);
 }
 
-function handleReset(index, displayEl, endEl, btn) {
-  clearInterval(timers[index]);
-  displayEl.textContent = formatTime(remainingTimes[index]);
-  endEl.textContent = "Ends at: --:--:--";
-  btn.textContent = "Start";
+// Real-time clock without seconds
+function updateRealTime(){
+  let now = new Date();
+  let hours = String(now.getHours()).padStart(2,'0');
+  let minutes = String(now.getMinutes()).padStart(2,'0');
+  realTimeDisplay.textContent = `${hours}:${minutes}`;
 }
-
-function handleFail(index, failSeconds, displayEl, endEl, btn) {
-  clearInterval(timers[index]);
-  remainingTimes[index] = failSeconds;
-  startTimer(index, displayEl, endEl, () => btn.textContent = "Success");
-  btn.textContent = "Pause";
-}
+setInterval(updateRealTime, 1000);
+updateRealTime();
 </script>
 
 </body>
