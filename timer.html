@@ -201,7 +201,8 @@ function updateStamps(){
     const raid = raidList[i];
     if (!raid) return;
     const ts = Math.floor(Date.now()/1000) + remainingTimes[i];
-    text += `${raid.name}: <t:${ts}:R>\n`;
+    text += `${raid.name}: <t:${ts}:R>
+`;
   });
   stampList.textContent = text;
 }
