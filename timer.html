@@ -2,23 +2,36 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Raid Cooldowns</title>
+<title>Raid & Dungeon Timers</title>
 <style>
-  body { font-family: Arial, sans-serif; background: #1e1e1e; color: #fff; text-align: center; padding: 20px; }
-  h1 { margin-bottom: 20px; }
-  .raid { margin: 10px 0; padding: 10px; border: 1px solid #444; border-radius: 8px; display: inline-block; width: 300px; }
+  body { font-family: Arial, sans-serif; background: #1e1e1e; color: #fff; padding: 20px; display: flex; gap: 30px; }
+  h2 { margin-bottom: 10px; }
+  .section { flex: 1; }
+  .raid, .dungeon { margin: 10px 0; padding: 10px; border: 1px solid #444; border-radius: 8px; width: 300px; }
   button { margin: 5px; padding: 5px 10px; }
   .time { font-size: 1.3em; margin-top: 5px; cursor: pointer; }
   .endTime { font-size: 0.9em; color: #aaa; margin-top: 3px; }
-  footer { margin-top: 30px; font-size: 0.9em; color: #ccc; }
+  .ready { color: #00ff00; }
+  .red { color: #ff4d4d; }
+  .yellow { color: #ffe44d; }
+  .sidePanel { width: 260px; border-left: 2px solid #555; padding-left: 20px; }
+  .stampBox { background:#222; padding:10px; border:1px solid #555; border-radius:6px; white-space:pre-wrap; }
 </style>
 </head>
 <body>
 
-<h1>Raid Cooldowns</h1>
-<div id="raids"></div>
+<div class="section">
+  <h2>Raids</h2>
+  <div id="raids"></div>
 
-<footer><b>made by https://discord.gg/fsrinfo using ChatGPT</b></footer>
+  <h2>Dungeons</h2>
+  <div id="dungeons"></div>
+</div>
+
+<div class="sidePanel">
+  <h2>Discord Timestamps</h2>
+  <div id="stampList" class="stampBox"></div>
+</div>
 
 <script>
 const raidList = [
@@ -34,162 +47,163 @@ const raidList = [
 ];
 
 const raidsDiv = document.getElementById("raids");
-const timers = {};
-const remainingTimes = {}; // main cooldown in seconds
+const dungeonsDiv = document.getElementById("dungeons");
+const stampList = document.getElementById("stampList");
 
-// Load saved timers
-if (localStorage.getItem("raidTimers")) {
-  const saved = JSON.parse(localStorage.getItem("raidTimers"));
-  Object.assign(remainingTimes, saved);
-}
+const timers = {};
+const remainingTimes = {};
 
 raidList.forEach((raid, index) => {
-  const raidDiv = document.createElement("div");
-  raidDiv.className = "raid";
+  const isDungeon = raid.cooldown === 180;
+  const container = document.createElement("div");
+  container.className = isDungeon ? "dungeon" : "raid";
 
   const nameEl = document.createElement("div");
   nameEl.textContent = raid.name;
-  raidDiv.appendChild(nameEl);
+  container.appendChild(nameEl);
+
+  const counterEl = document.createElement("div");
+  counterEl.textContent = "Counter: 0";
+  counterEl.style.cursor = "pointer";
+  counterEl.onclick = () => {
+    let val = prompt("Counter value:", counterEl.textContent.split(': ')[1]);
+    if (val !== null && !isNaN(val)) counterEl.textContent = "Counter: " + val;
+    updateStamps();
+  }
+  container.appendChild(counterEl);
 
   const timeEl = document.createElement("div");
   timeEl.className = "time";
-  remainingTimes[index] = remainingTimes[index] || raid.cooldown * 60;
-  timeEl.textContent = formatTime(remainingTimes[index]);
-  raidDiv.appendChild(timeEl);
+  timeEl.textContent = formatTime(raid.cooldown * 60);
+  container.appendChild(timeEl);
 
   const endEl = document.createElement("div");
   endEl.className = "endTime";
   endEl.textContent = "Ends at: --:--";
-  raidDiv.appendChild(endEl);
+  container.appendChild(endEl);
 
-  // Click timer to customize
-// Click timer to customize and auto-start
-timeEl.onclick = () => {
-  let hours = prompt("Enter hours for main cooldown:", Math.floor(remainingTimes[index]/3600));
-  if (hours === null || isNaN(hours) || hours < 0) return;
-  let minutes = prompt("Enter minutes for main cooldown:", Math.floor((remainingTimes[index]%3600)/60));
-  if (minutes === null || isNaN(minutes) || minutes < 0) return;
+  remainingTimes[index] = raid.cooldown * 60;
 
-  remainingTimes[index] = parseInt(hours)*3600 + parseInt(minutes)*60;
-  saveTimers();
-  clearInterval(timers[index]);
-  timeEl.textContent = formatTime(remainingTimes[index]);
-  
-  const endEl = raidDiv.querySelector(".endTime");
-  const startBtn = raidDiv.querySelector("button");
+  timeEl.onclick = () => customizeTime(index, timeEl, endEl, container);
 
-  startTimer(index, timeEl, endEl, () => startBtn.textContent = "Success");
-  startBtn.textContent = "Pause"; // reflect that timer is running
-};
-
-
-  // Start/Pause button
   const startBtn = document.createElement("button");
   startBtn.textContent = "Start";
-  startBtn.style.width = "80px";
   startBtn.onclick = () => handleStartPause(index, timeEl, endEl, startBtn);
-  startBtn.ondblclick = () => handleReset(index, timeEl, endEl, startBtn);
-  raidDiv.appendChild(startBtn);
+  container.appendChild(startBtn);
 
-  // Fail button
+  const resetBtn = document.createElement("button");
+  resetBtn.textContent = "Reset";
+  resetBtn.onclick = () => handleReset(index, timeEl, endEl, startBtn);
+  container.appendChild(resetBtn);
+
+  const successBtn = document.createElement("button");
+  successBtn.textContent = "Success";
+  successBtn.onclick = () => handleSuccess(index, raid.cooldown * 60, timeEl, endEl, startBtn);
+  container.appendChild(successBtn);
+
   const failBtn = document.createElement("button");
   failBtn.textContent = "Fail";
-  failBtn.style.width = "80px";
   failBtn.onclick = () => handleFail(index, raid.fail * 60, timeEl, endEl, startBtn);
-  raidDiv.appendChild(failBtn);
+  container.appendChild(failBtn);
 
-  raidsDiv.appendChild(raidDiv);
+  if (isDungeon) dungeonsDiv.appendChild(container);
+  else raidsDiv.appendChild(container);
 });
 
-function formatTime(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+function formatTime(sec) {
+  const h = Math.floor(sec/3600);
+  const m = Math.floor((sec%3600)/60);
+  const s = sec%60;
+  return `${h}h ${m}m ${s}s`;
 }
 
-function formatEndTime(date) {
-  // Only hours and minutes
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function formatEnd(date) {
+  return date.toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' });
 }
 
-
-function saveTimers() {
-  localStorage.setItem("raidTimers", JSON.stringify(remainingTimes));
+function recolor(el, sec) {
+  if (sec <= 0) { el.className = "time ready"; return; }
+  if (sec > 3600) el.className = "time red";
+  else el.className = "time yellow";
 }
 
-function notify() {
-  // Play sound
-  const audio = new Audio("https://www.soundjay.com/buttons/sounds/beep-07.mp3");
-  audio.play();
-  // Flash title
-  let flash = true;
-  const originalTitle = document.title;
-  const interval = setInterval(() => {
-    document.title = flash ? "Raid Ready!" : originalTitle;
-    flash = !flash;
-  }, 500);
-  setTimeout(() => { clearInterval(interval); document.title = originalTitle; }, 5000);
-  // Push notification
-  if (Notification.permission === "granted") {
-    new Notification("Raid Ready!", { body: "Your timer finished." });
-  }
-}
-
-// Request notification permission
-if (Notification.permission !== "granted") {
-  Notification.requestPermission();
-}
-
-function startTimer(index, displayEl, endEl, onFinish) {
+function startTimer(index, displayEl, endEl, callback) {
   clearInterval(timers[index]);
-  let remaining = remainingTimes[index];
-  const endTime = new Date(Date.now() + remaining * 1000);
-  endEl.textContent = "Ends at: " + formatEndTime(endTime);
+  let remain = remainingTimes[index];
+  const end = new Date(Date.now() + remain*1000);
+  endEl.textContent = "Ends at: " + formatEnd(end);
 
-  const start = Date.now();
   timers[index] = setInterval(() => {
-    const elapsed = Math.floor((Date.now() - start) / 1000);
-    remainingTimes[index] = remaining - elapsed;
-    displayEl.textContent = formatTime(Math.max(remainingTimes[index],0));
-    saveTimers();
-    if (remainingTimes[index] <= 0) {
+    remain--; remainingTimes[index] = remain;
+    displayEl.textContent = formatTime(remain);
+    recolor(displayEl, remain);
+    if (remain <= 0) {
       clearInterval(timers[index]);
       displayEl.textContent = "Ready!";
+      displayEl.className = "time ready";
       endEl.textContent = "Ends at: --:--";
-      notify();
-      remainingTimes[index] = raidList[index].cooldown * 60; // auto reset
-      saveTimers();
-      onFinish();
+      callback();
     }
+    updateStamps();
   }, 1000);
 }
 
-function handleStartPause(index, displayEl, endEl, btn) {
-  if (btn.textContent === "Start") {
-    startTimer(index, displayEl, endEl, () => btn.textContent = "Success");
-    btn.textContent = "Pause";
-  } else if (btn.textContent === "Pause") {
-    clearInterval(timers[index]);
+function handleStartPause(i, t, e, b){
+  if (b.textContent === "Start"){
+    startTimer(i, t, e, () => b.textContent="Success");
+    b.textContent = "Pause";
+  } else {
+    clearInterval(timers[i]);
+    b.textContent = "Start";
   }
 }
 
-function handleReset(index, displayEl, endEl, btn) {
-  clearInterval(timers[index]);
-  remainingTimes[index] = raidList[index].cooldown * 60;
-  displayEl.textContent = formatTime(remainingTimes[index]);
-  endEl.textContent = "Ends at: --:--";
-  saveTimers();
-  btn.textContent = "Start";
+function handleReset(i,t,e,b){
+  clearInterval(timers[i]);
+  t.textContent = formatTime(remainingTimes[i]);
+  recolor(t, remainingTimes[i]);
+  e.textContent = "Ends at: --:--";
+  b.textContent = "Start";
+  updateStamps();
 }
 
-function handleFail(index, failSeconds, displayEl, endEl, btn) {
-  clearInterval(timers[index]);
-  remainingTimes[index] = failSeconds;
-  startTimer(index, displayEl, endEl, () => btn.textContent = "Success");
+function handleSuccess(i, cd, t, e, b){
+  clearInterval(timers[i]);
+  remainingTimes[i] = cd;
+  startTimer(i,t,e,()=>{});
+  b.textContent="Pause";
+}
+
+function handleFail(i, sec, t, e, b){
+  clearInterval(timers[i]);
+  remainingTimes[i] = sec;
+  startTimer(i,t,e,()=>{});
+  b.textContent="Pause";
+}
+
+function customizeTime(i, t, e, box){
+  let h = prompt("Hours:", Math.floor(remainingTimes[i]/3600));
+  if (h===null) return;
+  let m = prompt("Minutes:", Math.floor((remainingTimes[i]%3600)/60));
+  if (m===null) return;
+  remainingTimes[i] = parseInt(h)*3600 + parseInt(m)*60;
+  t.textContent = formatTime(remainingTimes[i]);
+  recolor(t, remainingTimes[i]);
+  const btn = box.querySelector("button");
+  startTimer(i, t, e, () => btn.textContent="Success");
   btn.textContent = "Pause";
+  updateStamps();
+}
+
+function updateStamps(){
+  let text = '';
+  Object.keys(remainingTimes).forEach(i=>{
+    const raid = raidList[i];
+    if (!raid) return;
+    const ts = Math.floor(Date.now()/1000) + remainingTimes[i];
+    text += `${raid.name}: <t:${ts}:R>\n`;
+  });
+  stampList.textContent = text;
 }
 </script>
 
