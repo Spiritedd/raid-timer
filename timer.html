@@ -51,7 +51,6 @@
 </div>
 
 <script>
-// Clean, copyable HTML/JS. No escaped quotes inside content.
 const raidList = [
   { name: "3H - Red Ribbon", cooldown: 180, fail: 15 },
   { name: "4H - Android", cooldown: 240, fail: 75 },
@@ -70,60 +69,71 @@ const separatorColumn = document.getElementById('separatorColumn');
 const stampList = document.getElementById('stampList');
 
 const timers = {};
-const remainingTimes = {};
+let remainingTimes = {};
+let counters = {};
 
-// Helper functions
+// Load saved state
+if(localStorage.getItem('raidTimerTimes')) remainingTimes = JSON.parse(localStorage.getItem('raidTimerTimes'));
+if(localStorage.getItem('raidTimerCounters')) counters = JSON.parse(localStorage.getItem('raidTimerCounters'));
+
+function saveState(){
+  localStorage.setItem('raidTimerTimes', JSON.stringify(remainingTimes));
+  localStorage.setItem('raidTimerCounters', JSON.stringify(counters));
+}
+
 function formatTime(sec){
   const h = Math.floor(sec/3600);
   const m = Math.floor((sec%3600)/60);
   const s = sec%60;
   return `${h}h ${m}m ${s}s`;
 }
-function formatEnd(date){
-  return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-}
+function formatEnd(date){ return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
 function recolor(el, sec){
   el.className = 'time';
-  if (sec <= 0) { el.className = 'time ready'; return; }
-  if (sec > 3600) el.classList.add('red');
+  if(sec<=0){ el.className='time ready'; return; }
+  if(sec>3600) el.classList.add('red');
   else el.classList.add('yellow');
 }
 
-// Build UI
-raidList.forEach((raid, index) => {
-  const isDungeon = raid.cooldown === 180;
-
+raidList.forEach((raid,index)=>{
+  const isDungeon = raid.cooldown===180;
   const container = document.createElement('div');
-  container.className = isDungeon ? 'dungeon' : 'raid';
+  container.className = isDungeon?'dungeon':'raid';
 
-  const meta = document.createElement('div'); meta.className = 'meta';
-  const nameEl = document.createElement('div'); nameEl.textContent = raid.name; meta.appendChild(nameEl);
-  const endEl = document.createElement('div'); endEl.className = 'endTime'; endEl.textContent = 'Ends at: --:--'; meta.appendChild(endEl);
+  const meta = document.createElement('div'); meta.className='meta';
+  const nameEl = document.createElement('div'); nameEl.textContent=raid.name; meta.appendChild(nameEl);
+  const endEl = document.createElement('div'); endEl.className='endTime'; endEl.textContent='Ends at: --:--'; meta.appendChild(endEl);
 
-  const controls = document.createElement('div'); controls.className = 'controls';
+  const controls = document.createElement('div'); controls.className='controls';
 
-  const counterEl = document.createElement('div'); counterEl.className = 'counter'; counterEl.textContent = 'Counter: 0';
-  counterEl.addEventListener('click', () => {
-    const current = counterEl.textContent.split(': ')[1];
-    let val = prompt('Counter value:', current);
-    if (val !== null && !isNaN(val)) counterEl.textContent = 'Counter: ' + val;
-    updateStamps();
+  const counterEl = document.createElement('div'); counterEl.className='counter';
+  counterEl.textContent='Counter: '+(counters[index]||0);
+  counterEl.addEventListener('click',()=>{
+    const val=prompt('Counter value:', counters[index]||0);
+    if(val!==null && !isNaN(val)){
+      counters[index]=val;
+      counterEl.textContent='Counter: '+val;
+      saveState();
+      updateStamps();
+    }
   });
 
-  const timeEl = document.createElement('div'); timeEl.className = 'time'; timeEl.textContent = formatTime(raid.cooldown*60);
-  timeEl.addEventListener('click', () => customizeTime(index, timeEl, endEl, container));
+  const timeEl = document.createElement('div'); timeEl.className='time';
+  timeEl.textContent=formatTime(remainingTimes[index]||raid.cooldown*60);
+  remainingTimes[index] = remainingTimes[index] || raid.cooldown*60;
+  timeEl.addEventListener('click',()=>customizeTime(index,timeEl,endEl,container));
 
-  const startBtn = document.createElement('button'); startBtn.textContent = 'Start';
-  startBtn.addEventListener('click', () => handleStartPause(index, timeEl, endEl, startBtn));
+  const startBtn=document.createElement('button'); startBtn.textContent='Start';
+  startBtn.addEventListener('click',()=>handleStartPause(index,timeEl,endEl,startBtn));
 
-  const resetBtn = document.createElement('button'); resetBtn.textContent = 'Reset';
-  resetBtn.addEventListener('click', () => handleReset(index, timeEl, endEl, startBtn));
+  const resetBtn=document.createElement('button'); resetBtn.textContent='Reset';
+  resetBtn.addEventListener('click',()=>handleReset(index,timeEl,endEl,startBtn));
 
-  const successBtn = document.createElement('button'); successBtn.textContent = 'Success';
-  successBtn.addEventListener('click', () => handleSuccess(index, raid.cooldown*60, timeEl, endEl, startBtn));
+  const successBtn=document.createElement('button'); successBtn.textContent='Success';
+  successBtn.addEventListener('click',()=>handleSuccess(index,raid.cooldown*60,timeEl,endEl,startBtn));
 
-  const failBtn = document.createElement('button'); failBtn.textContent = 'Fail';
-  failBtn.addEventListener('click', () => handleFail(index, raid.fail*60, timeEl, endEl, startBtn));
+  const failBtn=document.createElement('button'); failBtn.textContent='Fail';
+  failBtn.addEventListener('click',()=>handleFail(index,raid.fail*60,timeEl,endEl,startBtn));
 
   controls.appendChild(counterEl);
   controls.appendChild(timeEl);
@@ -135,125 +145,86 @@ raidList.forEach((raid, index) => {
   container.appendChild(meta);
   container.appendChild(controls);
 
-  if (isDungeon) dungeonsDiv.appendChild(container);
+  if(isDungeon)dungeonsDiv.appendChild(container);
   else raidsDiv.appendChild(container);
 
-  // separator chip (short name)
-  const chip = document.createElement('div');
-  chip.className = 'chip';
-  // remove leading "3H - " or "4H - " from chip label for slickness
-  chip.textContent = raid.name.replace(/^\d+H -\s*/,'');
+  const chip=document.createElement('div'); chip.className='chip';
+  chip.textContent=raid.name.replace(/^\d+H -\s*/,'');
   separatorColumn.appendChild(chip);
-
-  remainingTimes[index] = raid.cooldown*60;
 });
 
-// Timer logic
-function startTimer(index, displayEl, endEl, callback){
+function startTimer(index,displayEl,endEl,callback){
   clearInterval(timers[index]);
-  let remain = remainingTimes[index];
-  const end = new Date(Date.now() + Math.max(remain,0)*1000);
-  endEl.textContent = 'Ends at: ' + formatEnd(end);
-
-  const start = Date.now();
-  timers[index] = setInterval(() => {
-    const elapsed = Math.floor((Date.now() - start)/1000);
-    remainingTimes[index] = remain - elapsed;
-    const cur = remainingTimes[index];
-    displayEl.textContent = formatTime(Math.max(cur,0));
-    recolor(displayEl, cur);
-    if (cur <= 0) {
-      clearInterval(timers[index]);
-      displayEl.textContent = 'Ready!';
-      displayEl.className = 'time ready';
-      endEl.textContent = 'Ends at: --:--';
-      callback();
-    }
+  let remain=remainingTimes[index];
+  const end=new Date(Date.now()+Math.max(remain,0)*1000);
+  endEl.textContent='Ends at: '+formatEnd(end);
+  const start=Date.now();
+  timers[index]=setInterval(()=>{
+    const elapsed=Math.floor((Date.now()-start)/1000);
+    remainingTimes[index]=remain-elapsed;
+    const cur=remainingTimes[index];
+    displayEl.textContent=formatTime(Math.max(cur,0));
+    recolor(displayEl,cur);
+    if(cur<=0){ clearInterval(timers[index]); displayEl.textContent='Ready!'; displayEl.className='time ready'; endEl.textContent='Ends at: --:--'; callback(); }
+    saveState();
     updateStamps();
-  }, 1000);
+  },1000);
 }
 
-function handleStartPause(i, t, e, b){
-  if (b.textContent === 'Start'){
-    startTimer(i, t, e, () => b.textContent = 'Success');
-    b.textContent = 'Pause';
-  } else {
-    clearInterval(timers[i]);
-    b.textContent = 'Start';
-  }
+function handleStartPause(i,t,e,b){
+  if(b.textContent==='Start'){ startTimer(i,t,e,()=>b.textContent='Success'); b.textContent='Pause'; }
+  else{ clearInterval(timers[i]); b.textContent='Start'; }
 }
 
-// Reset restores default cooldown AND auto-starts the timer
-function handleReset(i, t, e, b){
+function handleReset(i,t,e,b){
   clearInterval(timers[i]);
-  remainingTimes[i] = raidList[i].cooldown * 60;
-  t.textContent = formatTime(remainingTimes[i]);
-  recolor(t, remainingTimes[i]);
-  // auto-start
-  startTimer(i, t, e, () => b.textContent = 'Success');
-  b.textContent = 'Pause';
-  updateStamps();
+  remainingTimes[i]=raidList[i].cooldown*60;
+  t.textContent=formatTime(remainingTimes[i]);
+  recolor(t,remainingTimes[i]);
+  startTimer(i,t,e,()=>b.textContent='Success'); b.textContent='Pause';
+  saveState(); updateStamps();
 }
 
-function handleSuccess(i, cd, t, e, b){
-  clearInterval(timers[i]);
-  remainingTimes[i] = cd;
-  startTimer(i, t, e, () => {});
-  b.textContent = 'Pause';
+function handleSuccess(i,cd,t,e,b){
+  clearInterval(timers[i]); remainingTimes[i]=cd; startTimer(i,t,e,()=>{}); b.textContent='Pause'; saveState(); updateStamps();
 }
-function handleFail(i, sec, t, e, b){
-  clearInterval(timers[i]);
-  remainingTimes[i] = sec;
-  startTimer(i, t, e, () => {});
-  b.textContent = 'Pause';
+function handleFail(i,sec,t,e,b){
+  clearInterval(timers[i]); remainingTimes[i]=sec; startTimer(i,t,e,()=>{}); b.textContent='Pause'; saveState(); updateStamps();
 }
 
-function customizeTime(i, t, e, box){
-  let h = prompt('Hours:', Math.floor(remainingTimes[i]/3600));
-  if (h === null) return;
-  let m = prompt('Minutes:', Math.floor((remainingTimes[i]%3600)/60));
-  if (m === null) return;
-  remainingTimes[i] = parseInt(h) * 3600 + parseInt(m) * 60;
-  t.textContent = formatTime(remainingTimes[i]);
-  recolor(t, remainingTimes[i]);
-  const btn = box.querySelector('button');
-  startTimer(i, t, e, () => btn.textContent = 'Success');
-  btn.textContent = 'Pause';
-  updateStamps();
+function customizeTime(i,t,e,box){
+  let h=prompt('Hours:',Math.floor(remainingTimes[i]/3600)); if(h===null)return;
+  let m=prompt('Minutes:',Math.floor((remainingTimes[i]%3600)/60)); if(m===null)return;
+  remainingTimes[i]=parseInt(h)*3600+parseInt(m)*60;
+  t.textContent=formatTime(remainingTimes[i]); recolor(t,remainingTimes[i]);
+  const btn=box.querySelector('button'); startTimer(i,t,e,()=>btn.textContent='Success'); btn.textContent='Pause';
+  saveState(); updateStamps();
 }
 
 function updateStamps(){
-  let text = '';
-  Object.keys(remainingTimes).forEach(i => {
-    const raid = raidList[i];
-    if (!raid) return;
-    const ts = Math.floor(Date.now()/1000) + Math.max(remainingTimes[i], 0);
-    text += `${raid.name}: <t:${ts}:R>\n`;
+  let text='';
+  Object.keys(remainingTimes).forEach(i=>{
+    const raid=raidList[i]; if(!raid)return;
+    const ts=Math.floor(Date.now()/1000)+Math.max(remainingTimes[i],0);
+    text+=`${raid.name}: <t:${ts}:R>\n`;
   });
-  stampList.textContent = text;
+  stampList.textContent=text;
 }
 
-// copy all button
-const copyAllBtn = document.getElementById('copyAll');
-copyAllBtn.addEventListener('click', () => {
-  navigator.clipboard.writeText(stampList.textContent).then(() => {
-    alert('Timestamps copied to clipboard');
-  }).catch(() => {
-    alert('Copy failed');
-  });
+document.getElementById('copyAll').addEventListener('click',()=>{
+  navigator.clipboard.writeText(stampList.textContent).then(()=>alert('Timestamps copied to clipboard')).catch(()=>alert('Copy failed'));
 });
 
-// initial stamps
 updateStamps();
 </script>
 
 <div style="margin-top:40px; padding:20px; background:#111; border-top:2px solid #444; border-radius:10px; text-align:center; font-size:0.95em; line-height:1.6;">
   <div style="font-size:1.2em; margin-bottom:8px; font-weight:bold;">Instructions</div>
-  <div>• Double‑click a timer to set a custom time.</div>
-  <div>• Double‑click a counter to update its value.</div>
+  <div>• Double-click a timer to set a custom time.</div>
+  <div>• Click a counter to update its value (saved on refresh).</div>
   <div>• "Success" restarts the full cooldown instantly.</div>
   <div>• "Fail" applies the shorter fail cooldown.</div>
-  <div>• "Reset" restores the default cooldown and auto‑starts.</div>
+  <div>• "Reset" restores the default cooldown and auto-starts.</div>
   <br>
   <div style="opacity:0.8;">Made with ✦ ChatGPT ✦ for the FSR community</div>
   <div><a href="https://discord.gg/fsrinfo" style="color:#4da6ff; text-decoration:none; font-weight:bold;">discord.gg/fsrinfo</a></div>
