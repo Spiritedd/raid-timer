@@ -4,36 +4,54 @@
 <meta charset="UTF-8">
 <title>Raid & Dungeon Timers</title>
 <style>
-  body { font-family: Arial, sans-serif; background: #1e1e1e; color: #fff; padding: 20px; display: flex; gap: 30px; }
-  h2 { margin-bottom: 10px; }
+  :root{--bg:#1e1e1e;--panel:#222;--muted:#aaa;--accent:#00ff00;--danger:#ff4d4d;--warn:#ffe44d}
+  body { font-family: Arial, sans-serif; background: var(--bg); color: #fff; padding: 20px; display: flex; gap: 24px; align-items:flex-start; }
   .section { flex: 1; }
-  .raid, .dungeon { margin: 10px 0; padding: 10px; border: 1px solid #444; border-radius: 8px; width: 300px; }
-  button { margin: 5px; padding: 5px 10px; }
-  .time { font-size: 1.3em; margin-top: 5px; cursor: pointer; }
-  .endTime { font-size: 0.9em; color: #aaa; margin-top: 3px; }
-  .ready { color: #00ff00; }
-  .red { color: #ff4d4d; }
-  .yellow { color: #ffe44d; }
-  .sidePanel { width: 260px; border-left: 2px solid #555; padding-left: 20px; }
-  .stampBox { background:#222; padding:10px; border:1px solid #555; border-radius:6px; white-space:pre-wrap; }
+  h2 { margin: 6px 0 12px 0; font-size:18px }
+  .card { background: var(--panel); padding:10px; border-radius:8px; border:1px solid #333 }
+  .raid, .dungeon { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0; padding:10px; border-radius:8px; border:1px solid #444 }
+  .meta { display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:160px }
+  .controls { display:flex; gap:6px; }
+  button { margin:0; padding:6px 8px; background:#2b2b2b; color:#fff; border:1px solid #444; border-radius:6px; cursor:pointer }
+  button:hover{opacity:.95}
+  .time { font-size:1.1em; cursor:pointer; min-width:100px; text-align:right }
+  .endTime { font-size:0.85em; color:var(--muted) }
+  .ready { color: var(--accent); font-weight:700 }
+  .red { color: var(--danger) }
+  .yellow { color: var(--warn) }
+  .sidePanel { width:320px }
+  .stampBox { background:#151515; padding:10px; border:1px solid #333; border-radius:8px; white-space:pre-wrap; min-height:160px }
+  .separator-column { margin:8px 0 14px 0; display:flex; flex-direction:column; gap:8px }
+  .chip { padding:8px 12px; background:linear-gradient(180deg,#2b2b2b,#232323); border-radius:8px; border:1px solid #3a3a3a; font-size:13px; color:#ddd }
+  .copyBtn { width:100%; margin-top:10px }
+  .counter { font-size:13px; color:var(--muted); cursor:pointer }
 </style>
 </head>
 <body>
 
-<div class="section">
+<div class="section card">
   <h2>Raids</h2>
   <div id="raids"></div>
 
-  <h2>Dungeons</h2>
+  <h2 style="margin-top:18px">Dungeons</h2>
   <div id="dungeons"></div>
 </div>
 
 <div class="sidePanel">
-  <h2>Discord Timestamps</h2>
-  <div id="stampList" class="stampBox"></div>
+  <div class="card">
+    <h2>Quick list</h2>
+    <div id="separatorColumn" class="separator-column"></div>
+  </div>
+
+  <div class="card" style="margin-top:12px">
+    <h2>Discord Timestamps</h2>
+    <div id="stampList" class="stampBox"></div>
+    <button id="copyAll" class="copyBtn">Copy All Timestamps</button>
+  </div>
 </div>
 
 <script>
+// Clean, copyable HTML/JS. No escaped quotes inside content.
 const raidList = [
   { name: "3H - Red Ribbon", cooldown: 180, fail: 15 },
   { name: "4H - Android", cooldown: 240, fail: 75 },
@@ -46,102 +64,109 @@ const raidList = [
   { name: "3H - Animal Dojo", cooldown: 180, fail: 15 }
 ];
 
-const raidsDiv = document.getElementById("raids");
-const dungeonsDiv = document.getElementById("dungeons");
-const stampList = document.getElementById("stampList");
+const raidsDiv = document.getElementById('raids');
+const dungeonsDiv = document.getElementById('dungeons');
+const separatorColumn = document.getElementById('separatorColumn');
+const stampList = document.getElementById('stampList');
 
 const timers = {};
 const remainingTimes = {};
 
-raidList.forEach((raid, index) => {
-  const isDungeon = raid.cooldown === 180;
-  const container = document.createElement("div");
-  container.className = isDungeon ? "dungeon" : "raid";
-
-  const nameEl = document.createElement("div");
-  nameEl.textContent = raid.name;
-  container.appendChild(nameEl);
-
-  const counterEl = document.createElement("div");
-  counterEl.textContent = "Counter: 0";
-  counterEl.style.cursor = "pointer";
-  counterEl.onclick = () => {
-    let val = prompt("Counter value:", counterEl.textContent.split(': ')[1]);
-    if (val !== null && !isNaN(val)) counterEl.textContent = "Counter: " + val;
-    updateStamps();
-  }
-  container.appendChild(counterEl);
-
-  const timeEl = document.createElement("div");
-  timeEl.className = "time";
-  timeEl.textContent = formatTime(raid.cooldown * 60);
-  container.appendChild(timeEl);
-
-  const endEl = document.createElement("div");
-  endEl.className = "endTime";
-  endEl.textContent = "Ends at: --:--";
-  container.appendChild(endEl);
-
-  remainingTimes[index] = raid.cooldown * 60;
-
-  timeEl.onclick = () => customizeTime(index, timeEl, endEl, container);
-
-  const startBtn = document.createElement("button");
-  startBtn.textContent = "Start";
-  startBtn.onclick = () => handleStartPause(index, timeEl, endEl, startBtn);
-  container.appendChild(startBtn);
-
-  const resetBtn = document.createElement("button");
-  resetBtn.textContent = "Reset";
-  resetBtn.onclick = () => handleReset(index, timeEl, endEl, startBtn);
-  container.appendChild(resetBtn);
-
-  const successBtn = document.createElement("button");
-  successBtn.textContent = "Success";
-  successBtn.onclick = () => handleSuccess(index, raid.cooldown * 60, timeEl, endEl, startBtn);
-  container.appendChild(successBtn);
-
-  const failBtn = document.createElement("button");
-  failBtn.textContent = "Fail";
-  failBtn.onclick = () => handleFail(index, raid.fail * 60, timeEl, endEl, startBtn);
-  container.appendChild(failBtn);
-
-  if (isDungeon) dungeonsDiv.appendChild(container);
-  else raidsDiv.appendChild(container);
-});
-
-function formatTime(sec) {
+// Helper functions
+function formatTime(sec){
   const h = Math.floor(sec/3600);
   const m = Math.floor((sec%3600)/60);
   const s = sec%60;
   return `${h}h ${m}m ${s}s`;
 }
-
-function formatEnd(date) {
-  return date.toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' });
+function formatEnd(date){
+  return date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+function recolor(el, sec){
+  el.className = 'time';
+  if (sec <= 0) { el.className = 'time ready'; return; }
+  if (sec > 3600) el.classList.add('red');
+  else el.classList.add('yellow');
 }
 
-function recolor(el, sec) {
-  if (sec <= 0) { el.className = "time ready"; return; }
-  if (sec > 3600) el.className = "time red";
-  else el.className = "time yellow";
-}
+// Build UI
+raidList.forEach((raid, index) => {
+  const isDungeon = raid.cooldown === 180;
 
-function startTimer(index, displayEl, endEl, callback) {
+  const container = document.createElement('div');
+  container.className = isDungeon ? 'dungeon' : 'raid';
+
+  const meta = document.createElement('div'); meta.className = 'meta';
+  const nameEl = document.createElement('div'); nameEl.textContent = raid.name; meta.appendChild(nameEl);
+  const endEl = document.createElement('div'); endEl.className = 'endTime'; endEl.textContent = 'Ends at: --:--'; meta.appendChild(endEl);
+
+  const controls = document.createElement('div'); controls.className = 'controls';
+
+  const counterEl = document.createElement('div'); counterEl.className = 'counter'; counterEl.textContent = 'Counter: 0';
+  counterEl.addEventListener('click', () => {
+    const current = counterEl.textContent.split(': ')[1];
+    let val = prompt('Counter value:', current);
+    if (val !== null && !isNaN(val)) counterEl.textContent = 'Counter: ' + val;
+    updateStamps();
+  });
+
+  const timeEl = document.createElement('div'); timeEl.className = 'time'; timeEl.textContent = formatTime(raid.cooldown*60);
+  timeEl.addEventListener('click', () => customizeTime(index, timeEl, endEl, container));
+
+  const startBtn = document.createElement('button'); startBtn.textContent = 'Start';
+  startBtn.addEventListener('click', () => handleStartPause(index, timeEl, endEl, startBtn));
+
+  const resetBtn = document.createElement('button'); resetBtn.textContent = 'Reset';
+  resetBtn.addEventListener('click', () => handleReset(index, timeEl, endEl, startBtn));
+
+  const successBtn = document.createElement('button'); successBtn.textContent = 'Success';
+  successBtn.addEventListener('click', () => handleSuccess(index, raid.cooldown*60, timeEl, endEl, startBtn));
+
+  const failBtn = document.createElement('button'); failBtn.textContent = 'Fail';
+  failBtn.addEventListener('click', () => handleFail(index, raid.fail*60, timeEl, endEl, startBtn));
+
+  controls.appendChild(counterEl);
+  controls.appendChild(timeEl);
+  controls.appendChild(startBtn);
+  controls.appendChild(resetBtn);
+  controls.appendChild(successBtn);
+  controls.appendChild(failBtn);
+
+  container.appendChild(meta);
+  container.appendChild(controls);
+
+  if (isDungeon) dungeonsDiv.appendChild(container);
+  else raidsDiv.appendChild(container);
+
+  // separator chip (short name)
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  // remove leading "3H - " or "4H - " from chip label for slickness
+  chip.textContent = raid.name.replace(/^\d+H -\s*/,'');
+  separatorColumn.appendChild(chip);
+
+  remainingTimes[index] = raid.cooldown*60;
+});
+
+// Timer logic
+function startTimer(index, displayEl, endEl, callback){
   clearInterval(timers[index]);
   let remain = remainingTimes[index];
-  const end = new Date(Date.now() + remain*1000);
-  endEl.textContent = "Ends at: " + formatEnd(end);
+  const end = new Date(Date.now() + Math.max(remain,0)*1000);
+  endEl.textContent = 'Ends at: ' + formatEnd(end);
 
+  const start = Date.now();
   timers[index] = setInterval(() => {
-    remain--; remainingTimes[index] = remain;
-    displayEl.textContent = formatTime(remain);
-    recolor(displayEl, remain);
-    if (remain <= 0) {
+    const elapsed = Math.floor((Date.now() - start)/1000);
+    remainingTimes[index] = remain - elapsed;
+    const cur = remainingTimes[index];
+    displayEl.textContent = formatTime(Math.max(cur,0));
+    recolor(displayEl, cur);
+    if (cur <= 0) {
       clearInterval(timers[index]);
-      displayEl.textContent = "Ready!";
-      displayEl.className = "time ready";
-      endEl.textContent = "Ends at: --:--";
+      displayEl.textContent = 'Ready!';
+      displayEl.className = 'time ready';
+      endEl.textContent = 'Ends at: --:--';
       callback();
     }
     updateStamps();
@@ -149,63 +174,77 @@ function startTimer(index, displayEl, endEl, callback) {
 }
 
 function handleStartPause(i, t, e, b){
-  if (b.textContent === "Start"){
-    startTimer(i, t, e, () => b.textContent="Success");
-    b.textContent = "Pause";
+  if (b.textContent === 'Start'){
+    startTimer(i, t, e, () => b.textContent = 'Success');
+    b.textContent = 'Pause';
   } else {
     clearInterval(timers[i]);
-    b.textContent = "Start";
+    b.textContent = 'Start';
   }
 }
 
-function handleReset(i,t,e,b){
+// Reset restores default cooldown AND auto-starts the timer
+function handleReset(i, t, e, b){
   clearInterval(timers[i]);
+  remainingTimes[i] = raidList[i].cooldown * 60;
   t.textContent = formatTime(remainingTimes[i]);
   recolor(t, remainingTimes[i]);
-  e.textContent = "Ends at: --:--";
-  b.textContent = "Start";
+  // auto-start
+  startTimer(i, t, e, () => b.textContent = 'Success');
+  b.textContent = 'Pause';
   updateStamps();
 }
 
 function handleSuccess(i, cd, t, e, b){
   clearInterval(timers[i]);
   remainingTimes[i] = cd;
-  startTimer(i,t,e,()=>{});
-  b.textContent="Pause";
+  startTimer(i, t, e, () => {});
+  b.textContent = 'Pause';
 }
-
 function handleFail(i, sec, t, e, b){
   clearInterval(timers[i]);
   remainingTimes[i] = sec;
-  startTimer(i,t,e,()=>{});
-  b.textContent="Pause";
+  startTimer(i, t, e, () => {});
+  b.textContent = 'Pause';
 }
 
 function customizeTime(i, t, e, box){
-  let h = prompt("Hours:", Math.floor(remainingTimes[i]/3600));
-  if (h===null) return;
-  let m = prompt("Minutes:", Math.floor((remainingTimes[i]%3600)/60));
-  if (m===null) return;
-  remainingTimes[i] = parseInt(h)*3600 + parseInt(m)*60;
+  let h = prompt('Hours:', Math.floor(remainingTimes[i]/3600));
+  if (h === null) return;
+  let m = prompt('Minutes:', Math.floor((remainingTimes[i]%3600)/60));
+  if (m === null) return;
+  remainingTimes[i] = parseInt(h) * 3600 + parseInt(m) * 60;
   t.textContent = formatTime(remainingTimes[i]);
   recolor(t, remainingTimes[i]);
-  const btn = box.querySelector("button");
-  startTimer(i, t, e, () => btn.textContent="Success");
-  btn.textContent = "Pause";
+  const btn = box.querySelector('button');
+  startTimer(i, t, e, () => btn.textContent = 'Success');
+  btn.textContent = 'Pause';
   updateStamps();
 }
 
 function updateStamps(){
   let text = '';
-  Object.keys(remainingTimes).forEach(i=>{
+  Object.keys(remainingTimes).forEach(i => {
     const raid = raidList[i];
     if (!raid) return;
-    const ts = Math.floor(Date.now()/1000) + remainingTimes[i];
-    text += `${raid.name}: <t:${ts}:R>
-`;
+    const ts = Math.floor(Date.now()/1000) + Math.max(remainingTimes[i], 0);
+    text += `${raid.name}: <t:${ts}:R>\n`;
   });
   stampList.textContent = text;
 }
+
+// copy all button
+const copyAllBtn = document.getElementById('copyAll');
+copyAllBtn.addEventListener('click', () => {
+  navigator.clipboard.writeText(stampList.textContent).then(() => {
+    alert('Timestamps copied to clipboard');
+  }).catch(() => {
+    alert('Copy failed');
+  });
+});
+
+// initial stamps
+updateStamps();
 </script>
 
 </body>
